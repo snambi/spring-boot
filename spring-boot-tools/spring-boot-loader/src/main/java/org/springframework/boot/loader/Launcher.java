@@ -17,6 +17,7 @@
 package org.springframework.boot.loader;
 
 import java.io.File;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.security.CodeSource;
@@ -57,11 +58,59 @@ public abstract class Launcher {
 	 * @throws Exception if the classloader cannot be created
 	 */
 	protected ClassLoader createClassLoader(List<Archive> archives) throws Exception {
-		List<URL> urls = new ArrayList<URL>(archives.size());
+
+		List<URL> classpath = getClasspath();
+
+		for (URL url : classpath) {
+			System.out.println("ClassPath = " + url.getFile());
+		}
+
+		List<URL> urls = new ArrayList<URL>(archives.size() + classpath.size());
+
+		urls.addAll(classpath);
+
 		for (Archive archive : archives) {
 			urls.add(archive.getUrl());
 		}
+
 		return createClassLoader(urls.toArray(new URL[urls.size()]));
+	}
+
+	// Get the classpath provided by "CLASSPATH" variable
+	protected List<URL> getClasspath() throws Exception {
+
+		List<URL> classPaths = new ArrayList<URL>();
+
+		String classPath = System.getenv("CLASSPATH");
+		String[] paths = null;
+
+		if (classPath != null || classPath.trim().equals("")) {
+			if (classPath.contains(File.separator)) {
+				paths = classPath.split(File.separator);
+			}
+			else {
+				paths = new String[]{classPath};
+			}
+		}
+
+		if (paths != null && paths.length > 0) {
+			for (String p : paths) {
+				File f = new File(p);
+				if (f.exists() && f.canRead()) {
+					try {
+
+						URL url = new URL(f.getAbsolutePath());
+						classPaths.add(url);
+
+					}
+					catch (MalformedURLException e) {
+						throw new Exception(p + " doesn't exist or not readable");
+					}
+				}
+			}
+		}
+
+		return classPaths;
 	}
 
 	/**
